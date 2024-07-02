@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 
 class PresensiController extends Controller
@@ -17,7 +19,8 @@ class PresensiController extends Controller
         return view('presensi.create', compact('cek'));
     }
 
-    public function store(Request $request){
+    public function store(Request $request)
+    {
         $nik = Auth::guard('karyawan')->user()->nik;
         $tgl_presensi = date("Y-m-d");
         $jam = date("H:i:s");
@@ -84,7 +87,8 @@ class PresensiController extends Controller
     }
 
     // Menghitung Jarak
-    function distance($lat1, $lon1, $lat2, $lon2){
+    function distance($lat1, $lon1, $lat2, $lon2)
+    {
         $theta = $lon1 - $lon2;
         $miles = (sin(deg2rad($lat1)) * sin(deg2rad($lat2))) + (cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta)));
         $miles = acos($miles);
@@ -95,5 +99,77 @@ class PresensiController extends Controller
         $kilometers = $miles * 1.609344;
         $meters = $kilometers * 1000;
         return compact('meters');
+    }
+
+    public function editprofile()
+    {
+        $nik = Auth::guard('karyawan')
+            ->user()
+            ->nik;
+        
+        $karyawan = DB::table('karyawan')
+            ->where('nik', $nik)
+            ->first();
+        
+        return view('presensi.editprofile', compact('karyawan'));
+    }
+
+    public function updateprofile(Request $request)
+    {
+        $nik = Auth::guard('karyawan')
+            ->user()
+            ->nik;
+        
+        $nama_lengkap = $request
+            ->nama_lengkap;
+        
+        $no_hp = $request
+            ->no_hp;
+        
+        $password = Hash::make($request->password);
+        $karyawan = DB::table('karyawan')
+            ->where('nik', $nik)
+            ->first();
+
+        if($request->hasFile('foto')){
+            $foto = $nik.".".$request
+                ->file('foto')
+                ->getClientOriginalExtension();
+        } else {
+            $foto = $karyawan->foto;
+        }
+        
+        if (empty($request->password)) {
+            $data = [
+                'nama_lengkap' => $nama_lengkap,
+                'no_hp' => $no_hp,
+                'foto' => $foto
+            ];
+        } else {
+            $data = [
+                'nama_lengkap' => $nama_lengkap,
+                'no_hp' => $no_hp,
+                'password' => $password,
+                'foto' => $foto
+            ];
+        }
+        
+        $update = DB::table('karyawan')
+            ->where('nik', $nik)
+            ->update($data);
+        
+        if($update){
+            if($request->hasFile('foto')){
+                $folderpath = "public/uploads/karyawan/";
+                $request
+                    ->file('foto')
+                    ->storeAs($folderpath, $foto);
+            }
+            return Redirect::back()
+                ->with(['success' => 'Data Berhasil Di Update']);
+        }else{
+            return Redirect::back()
+                ->with(['error' => 'Data Gagal Di Update']);
+        }
     }
 }
